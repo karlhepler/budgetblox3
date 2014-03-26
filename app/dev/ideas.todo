@@ -24,6 +24,8 @@ TODO
  ☐ The "today" date variable in server needs to be moved out of global scope - it doesn't update unless the server is restarted
  ☐ Grippy needs to be wider
  ☐ Blue selecty thing needs to be on right side of grippy... or actually... put it under grippy
+ ☐ Need to have different budget limits for each month - most recent budget limit is default
+ ☐ 
 
 --- ✄ -----------------------
 DONE
