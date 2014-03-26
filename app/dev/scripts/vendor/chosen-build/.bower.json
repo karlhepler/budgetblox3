@@ -1,0 +1,14 @@
+{
+  "name": "chosen-build",
+  "homepage": "https://github.com/mvrkljan/chosen-build",
+  "version": "1.0.0",
+  "_release": "1.0.0",
+  "_resolution": {
+    "type": "version",
+    "tag": "v1.0.0",
+    "commit": "043ba1a3b29b851a8e98f106a687b0d4c2c66571"
+  },
+  "_source": "git://github.com/mvrkljan/chosen-build.git",
+  "_target": "*",
+  "_originalSource": "chosen-build"
+}

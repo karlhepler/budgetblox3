@@ -1,0 +1,10 @@
+{
+	"tab_size": 2,
+	"folders":
+	[
+		{
+			"follow_symlinks": true,
+			"path": "."
+		}
+	]
+}

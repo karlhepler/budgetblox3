@@ -1,0 +1,632 @@
+--- ✄ -----------------------
+GUI CONCEPTS
+--- ✄ -----------------------
+ ☐ Future income is listed separately from the transactions list. You check it off once received and it goes
+     into the transaction list. Calculate the budget balances using the transaction list only.
+ ☐ The budget fund icon needs to be a bar graph - turning from grey to the color that it's supposed to be
+     depending on how full the budget is for this month - this is different than the balance of said budget
+ ✔ Moving money between budgets adjusts the budget offset. Not sure how this will actually work, @done (14-03-08 21:53)
+     but an example would be if I had money in meds but none in groceries, I could decrease the current
+     balance of meds by $20 and increase the current balance of groceries by $20, so that no matter
+     where groceries is in the list, it will now have a balance of $20 and meds will have its balance less
+     $20. Hmmm... In doing this, I feel that I am then effectively increasing one of the budgets? I need to
+     think about this more.
+ ☐ Moving money between banks creates two transactions - one expense and one income. Easy.
+ ✔ Don't update the db when the budget/bank is selected. Instead, update the url @done (14-03-05 20:46)
+   
+--- ✄ -----------------------
+RETURN VALUES NECESSARY
+--- ✄ -----------------------
+
+BUDGET:
+  * ID
+  * Name
+  * Limit
+  * Goal
+  * Due Date
+  * Balance
+  * priority
+BANK:
+  * ID
+  * Name
+  * Balance
+  * Expected Income
+  * priority
+  * openingBalance
+  * dateOpened
+TRANSACTION:
+  * ID
+  * Amount
+  * Description
+  * Date
+  * Budget Name
+  * Contact Name
+
+--- ✄ -----------------------
+BUDGET OFFSETS
+--- ✄ -----------------------
+The first thing to understand is that the optimal situation includes doing not client-side calculations if possible and minimizing
+the server-side calculations. Right now, the server is having to recalculate everything every time the list is called. I don't want this
+to happen. The reasoning for this is because of the potential date change. However, this can easily be solved by recording the last
+time list was called and comparing it to today's date. Duh. In order to do this the best way, I think I should have a log db. It can
+be setup like this:
+
+  _id
+  schemaName
+  action
+
+--- ✄ -----------------------
+DATABASE CONCEPTS
+--- ✄ -----------------------
+This time around, I am separating budgets and bills. This will have many advantages. First of all, it will make
+budgets month/year-centric and allow ALL OF THEM to be sorted by priority - NOT due date. Separate will be bills,
+which will be linked to budgets one-to-one. Bills serve only as date reminders. That's it. They don't have any
+qualities other than a name and a due date. It is the budget that controls the amount, balance, and priority.
+
+Income will also be its own separate table. It is kind of a mixture of budgets and bills, but serves a purpose
+beyond priority. Income isn't prioritized - it just is... and the budgets draw from this. Income is expected
+on a certain date, however, so there will be a date element attached.
+
+Banks just have names and opening dates. They also have a default priority. Budgets can specify a custom bank
+priority in the budgets_banks table, but if there is nothing there, they will rely on the default banks priority.
+
+Transactions contain an amount and a budgetId... maybe. Transactions are where the difficulty comes. That being
+said, maybe I'm making too much out of it. Stop thinking that you are spending money directly out of the bank.
+The budget is the source of transactional income. If there is nothing in the budget to spend, then you cannot spend!
+Therefor, budgets can be thought of like little mini banks within the banks. They fill up dynamically as you aquire
+money in the banks. However, once a transaction is done, it's done. The money has been taken from the budget,
+and in turn, from the specific banks the transaction drew from via the budget. This cannot change obviously. So I
+definitely want the transaction directly linked to the budget and I want the budget to control the distribution
+between itself and the banks. Middle management. This is where it gets tricky... it's almost like there should be
+budget_transaction and bank_transaction tables... but I'm not sure this is necessary. Let's say I have a budget for groceries.
+Currently, it looks like this:
+  groceries = {
+    limit: 100,
+    balance: 100
+    bank_amounts: {
+      Bank of America: {
+        priority: 1,
+        amount: 20,
+        balance: 20
+      },
+      Cash: {
+        priority: 0,
+        amount: 80,
+        balance: 80
+      }
+    }
+  }
+
+  Looking at this, it's easy to see that I have $20 in BOA to spend and $80 in cash... making the total amount $100.
+  Cash is my #1 priority, then Bank of America. Now... I go to the store with $80 of cash in my hand and my debit card.
+  I buy an item at the store totaling $95. My transaction could look like this:
+    transaction = {
+      budget: groceries,
+      amount: 95,
+      date: 1/27/2014
+    }
+
+  Ok - from this I can see that on 1/27, I made a purchase of $95 and took that money from my groceries budget. The
+  groceries budget then performs the logic once this transaction is made and changes itself to the following:
+    groceries = {
+    limit: 100,
+    balance: 5
+    bank_amounts: {
+      Bank of America: {
+        priority: 1,
+        limit: 20,
+        balance: 5
+      },
+      Cash: {
+        priority: 0,
+        limit: 80,
+        balance: 0
+      }
+    }
+  }
+
+  Now you can see that I have $5 left in my groceries budget. More specifically, you can see that if I want to go to the store
+  again and buy something, I cannot spend anything else with cash. I can only spend 5 more dollars with BOA.
+
+  Now imagine that I make some tips and I now have 5 additional dollars in cash just sitting in the cash drawer. The budget
+  needs to reallocate its available balances according to priority. Now that I have $5 in cash, I don't need to use BOA for
+  this purchase. The reallocation looks like this:
+
+    groceries = {
+    limit: 100,
+    available: 5
+    bank_balances: {
+      Bank of America: {
+        priority: 1,
+        limit: 20,
+        available: 0
+      },
+      Cash: {
+        priority: 0,
+        limit: 80,
+        available: 5
+      }
+    }
+  }
+
+  Now the next time I go to the store, I know I have $5 cash to spend - NOT BOA.
+
+  So, the problem I'm seeing with this is how I am supposed to keep track of these transactions from the bank's perspective.
+  If I had a list of transactions arranged like so, how would I calculate this information?:
+    DATE     |     AMOUNT     |     BUDGET     |     NEW BANK BALANCES
+
+  I guess another question would be... do I need to calculate the new bank balances? Maybe not.... The banks money is
+  depleted once it gets it. It funnels itself right through into the budget waiting for it. Now our experience with the bank
+  from an end-user's perspective, is complete. The goal is to spend all of your money on purpose before you even have it.
+  Once it's in the budget, we just spend it out of the budget... mini bank... that being said....
+
+  What if you delete or edit a transaction? That's where this concept breaks, I think... so there needs to be possibly another table
+  between budgets and transactions that keeps track of the available bank balance per transaction on a particular date.
+
+Hmmm... you wouldn't need the table to have a date itself... because it would be tied in with the transaction, which already has
+a date. It would need a "bank_amounts" area that shows how much was spent per bank.
+
+  budgets_transactions = {
+    transactionId: 23456789,
+    budgetid: 8765432,
+    bank_amounts: {
+      Bank of America: 15,
+      Cash: 80
+    }
+  }
+
+  Now looking back at the budget itself... I would say keep that the same as I planned.
+
+  So now the question is... can/should I merge the budgets_transactions table with the transactions table? They seem to
+  contain pretty much the same information... so... maybe try this:
+
+    transactions = {
+      date: 1/27/2014,
+      budget: groceries,
+      amount: 95,
+      bank_amounts: {
+        bank of america: 15,
+        cash: 80
+      }
+    }
+
+    While the amount value isn't necessary, because it can be calculated by adding the bank_amounts together each time,
+    it would be more efficient to have it so that the server/client doesn't need to constantly crunch through calculations.
+    The same goes with the budget's limit and available values... not necessary technically, but lessens constant cpu work.
+
+Now.... bills... bills are literally just due dates and names. A bill and a budget is a one-to-one relationship. One bill will be
+associated with one budget. One budget will be associated with one bill. Bills only act as reminders. That's it. To that effect,
+not all budgets are bills. However, all bills ARE budgets. Therefore, there will be a link to budgets on the bills table, but
+not the other way around. The bills table will look like this:
+
+  bills = {
+    dueDate: 1/27/2014,
+    budgetId: 345678
+  }
+
+  In fact... it doesn't even need a name, because the budget already has the name. There is a great temptation for me to
+  want to combine bills and budgets. HOWEVER HOWEVER HOWEVER.... budgets must be sorted by priority and bills
+  must only be sorted by due date. They are completely separate and keeping them separate will help with the design of
+  the program. For instance... say a bill is due on the 5th, but it's low on the priority list. Even though it's due, you
+  might not have money allocated for it yet because there are more important budgets to take into account first...
+  which means you can't pay the bill on time. I might also want to incorporate a link between vendors and bills... purely
+  for the purpose of reports. How much did you spend at kroger etc? Well actually... just saying that makes me
+  want to tie vendors in with transactions instead. However, I would still like to have relevent vendor information
+  attached to the bill... so I know where to send it and who I'm sending it to, specifically. Maybe I could do both.
+
+  GOALS. Goals are tricky... I think... Goals create a budget for you. I think that's the general idea. You create a goal
+  and it calculates how much you will need to budget per month to meet that goal, then it just creates budgets. Let's think
+  about the relationship. All goals will have many budgets. However, not all budgets will be tied to goals. It doesn't make
+  logical sense to include the goal id in the budget itself. It's a one-way street. That being said, it's a one-to-many relationship.
+  There will be many budgets per goal... so in that respect, it makes sense to put the goal id in the budget table... but not
+  all budgets are goals. So perhaps there needs to be an intermiediate table.
+
+  goals_budgets = {
+    goalId: 2345678,
+    budgetId: 76543
+  }
+
+  The goal keeps track of the overall progress and would have a dueDate as well.
+
+  goals = {
+    limit: 1000,
+    available: 0,
+    dueDate: 5/1/2014
+  }
+
+  So the goal would create a budget for every month between now and the due date. When a budget is paid into, it adds to
+  the available balance of the goal, which starts at 0.... alternatively, it could be the opposite... but no... this would go against
+  what I'm trying to convey to the client. The client would be more concerned about what is available to spend I think.
+
+  Now let's say you saved all this money and it's in a single goal that has many full budgets available to it. It's now time to spend
+  this goal money. You create a transaction for $800 and you have 5 budgets with limits at $200 each... all associated via
+  this parent goal, via the goals_budgets table.
+
+  I'm starting to think this intermediate table is a mistake. It is meant for many-to-many relationships... that's it. Maybe budgets will
+  have a goalId value, which is null by default. Then you just search budgets for the particular goal Id... you sort by month/year.
+  You then pull from each budget in that order until you tap them all out. That seems pretty complicated... but I think it's the way to
+  do it... because I definitely want to take advantage of the budget structure already set up... a goal is kind of like a clock radio.
+--- ✄ -----------------------
+  Here are my tables:
+
+    budgets = {
+      _id,
+      limit,
+      available,
+      priority,
+      monthYear,
+      name,
+      goal: null
+    }
+    budgets_banks = {
+      _id,
+      budgetId,
+      bankId,
+      limit,
+      available
+    }
+    banks = {
+      _id,
+      name,
+      dateOpened
+    }
+    transactions = {
+      _id,
+      date,
+      budgetId,
+      amount,
+      desc,
+      vendorId
+    }
+    transactions_banks = {
+      _id,
+      transactionId,
+      bankId,
+      amount
+    }
+    bills = {
+      _id,
+      dueDate,
+      budgetId,
+      vendorId
+    }
+    goals = {
+      _id,
+      limit,
+      available,
+      dueDate
+    }
+    income = {
+      _id,
+      date,
+      bankId,
+      customerId,
+      amount
+    }
+    customer = {
+      _id,
+      name,
+      address,
+      phone,
+      etc etc etc
+    },
+    vendor = {
+      _id,
+      name,
+      address,
+      phone,
+      etc etc etc
+    }
+--- ✄ -----------------------
+Now I need to look through these tables and see where I can make them better... however, I think it's pretty sound.
+
+One thing I'm noticing... I'm also thinking about simple.com - it looks like goals and budgets are generally very similar.
+Budgets are tied to a monthYear and goals are tied to an exact date.
+
+it also looks like bills and transactions are very similar. HOWEVER, a bill doesn't have an amount associated with it,
+while a transaction does. I think these should be separate. Bills are just budget reminders.
+
+How can I and why should I combine budgets and goals? I don't think I should. This will allow me to re-prioritize the goals
+each month... plus, goals should always be last... below basic necessities... by default.
+--- ✄ -----------------------
+So now I need to think about each view and what I want to be displayed in each view. This will help me understand
+how I must fetch these tables. I might not need models and collections for everything, as I may be able to do a lot
+of the calculations and combining of things server side.
+
+GUI GUI GUI GUI
+
+* OK - I want to be as minimal as possible. I really like simple.com's design. I really like a lot of what they do, but I 
+think I'll be doing mine a little differently anyway.
+
+* I want the progression from bank > budget > transaction to be obvious
+
+I was initially thinking boxes, from left-to-right...
+
+hmmm
+
+Banks... should they be listed... I think so, so but it shouldn't be featured as a main thing. Budgets are really the big deal.
+You spend out of budgets. Banks are just there to supply the budgets with money via income recorded in those banks.
+Budgets then spend the banks' money. Transasctions then spend the budgets' money.
+
+I'm thinking of having the budgets in a vertical list, then have a line that progresses down past the budgets that
+are filled... Maybe... maybe not obvious enough... also - it's going to run off the page.
+
+Simple.com has the budgets listed in a horizontal column, but I don't think they are sorting their budgets like I'm trying
+to do. If you are sorting something, then it should be in a simple vertical list. That's it. Maybe the available budgets can
+be in a separate area. Maybe displayed in a block format instead of a list... like 3 across and going down.
+
+Transactions are ordered by date. This is a vertical list. searchable.
+
+Goals are displayed in a horizontal graph over time.
+
+Bills can be shown in a list ordered by date... well... no... I want to show them in order by date somehow, but they
+are already in a list with the budgets. There needs to be a complimentary area that shows the bills by date. I am immediately
+thinking of having a small month view, but it will be hard to show multiple bills per date unless the month view is huge.
+
+So as an alternative, bills could be in their own list... just a reminder list... but then it's the same information,
+but in a different place... hmm.... Why not just have the due date in the same list, but only on the particular budgets
+that are bills. If it goes overdue, just keep it at the top...
+
+So dates can still be vertical scrolling. budgets on left and transactions on right. Filled budgets can be in their own
+area... maybe above the transactions... maybe above everything in a horizontal list like simple.com
+--- ✄ -----------------------
+
+It might be possible to make goals and budgets the same thing... maybe....
+
+If all budgets had an optional end date, then that ending date would signify a goal. You could detach the month/year from the budget
+and it would always be continuously building. However... a probably with this is... what if you want the budget amounts
+to be different for different months? You would have to have a separate table for budget amounts.... maybe putting it
+on this could be optional... so you could have a primary table:
+
+  budgets/goals = {
+    _id,
+    monthly_limit: 100,
+    running_total_limit: 800,
+
+    startDate: 1/1/14,
+    endDate: null OR 9/17/14
+  }
+
+  If there is an end date, then you would not be allowed to control the monthly_limit, otherwise you could... you would also need a start date to properly divide the
+  running total to find out where you are... hmmm... you would also need to incorporate a balance etc... i guess just like a regular budget, but bigger picture
+
+  THEN... you could have another table for monthly exceptions
+
+  budgets_exceptions = {
+    _id,
+    monthYear,
+    limit,
+    budgetId
+  }
+
+  You could just return it all as one thing to backbone.... so it could return different monthly_limits....hmmmm
+
+  well....
+
+  I just had another thought
+
+  Maybe budgets just stay as infinite buckets... you can try to fill it with what it needs that month, but it might already have some in there...
+  so you might not have to fill it up all the way
+
+  But if it's substantially less, then what? Well I guess you could say that as long as there is at least X amount in there for THIS month, it doesn't matter
+  If there is additional from other months in there, then ok... but don't worry about adjusting anything if there was no payment into it last month
+
+  So... mathematically....
+
+  monthly = $100
+  total = $800
+  start date = (10 months ago)
+
+  No... this will break... let's say I put $200 into it this month... but why would I.... I can't, right? I can only put in what I'm allowed, unless I change it
+  in a special case scenario
+
+  .... hmmm.... need to keep thinking about this a little bit....
+
+  Well... it can be variable... the major point is that, starting at the beginning of the month until the end of the month, at some point in there, there needs to be
+  up-to a certain amount of money made available for spending. If money is spent within that month, it's just applied to that and the required balance then
+  decreases. So you could pay into your Groceries budget months ahead of time and it would stick around until it needed to be filled again
+
+--- ✄ -----------------------
+
+  January
+  * By the end of the month, as soon as I can get it, I need to have $100 available in the Groceries budget
+  * I am starting with $0
+  * I put in $50... now the balance is $50
+  * I spend $30... my available balance is $20, but I know that I still have $50 more to put in before I reach my limit
+  * I put in $50... now the budget's limit has been met and there is an available spending balance of $70
+
+  February
+  * I start this month with $70 in Groceries and I need it to be $100 by or before the end of the month
+  * I immediately spend $40, leaving me with an available balance of $30.... but the limit balance is still $70
+  * I put in $30, making my limit balance $100... my available balance is now $60
+
+  March
+  * I start the month with $60 limit balance out of $100
+  * I spend $20, making my available balance $40. My limit balance stays the same.
+
+  April
+  * I start the month with $40 out of $100
+
+  Trends...
+  * I can see a clear separation between transactions and income...
+  ** Transactions affect the available (spendable) balance
+  ** Income affects the limit balance
+
+  * There is a monthly limit
+  * The starting balance for the month seems to reset itself to the available balance left over from the previous month... or does it?
+
+  If I just keep a running total of what I have put into this budget, I will see that over the course of these three months, I put in the following:
+    limit: $100 x 4 months = $400
+    income received: $50 + $50 + $30 = $130
+    spent: $30 + $40 + $20 = $90
+
+    I can see that if I do "income received" - "spent", I get $40, which is what I start April with
+    I know my monthly limit is $100, so I know that I am able to put in $80 this month to match that
+
+    Let's say I didn't calculate that at the beginning of the month... let's say I just spent $30 at the beginning of April
+    That changes the "balance" from $40 to $10... now it looks like I can put $90 into the budget... but I can't
+
+    So you need to know what the beginning balance is going to be of each month.
+    To get this, you add up all income and expenses for all months prior and subtract spent from received... that gets you beginning balance
+    THEN, you subtract that from the budget limit and that gives you the amount left to put in the budget
+
+    ... that's at the beginning of the month
+
+    As the month goes on, you also need to take into consideration the current month's spent/income/balance
+
+    Let's say that my month looks like this:
+      beginning balance = $30
+      spent_this_month = $0
+      income_this_month = $0
+
+      * I put in $40, then $20... now:
+      beginning_balance = $30
+      spent_this_month = $0
+      income_this_month = $40 + $20 = $60
+
+      So far it looks like the current balance is income_this_month + beginning_balance = $90
+
+      Let's spend $10, then $40...
+      beginning_balance = $30
+      spent_this_month = $10 + $40 = $50
+      income_this_month = $40 + $20 = $60
+
+      So now I have the following:
+        budget_limit_balance = beginning_balance + income_this_month = $90
+        available_to_spend = budget_limit_balance - spent_this_month = $40
+
+OK! So - a couple of things... there can be an optional limit that deviates from the default limit... for a particular month
+Your budget limits will change from month-to-month... however, this may not happen very often, so it doesn't need to be permanent... there needs to be a default
+The server should calculate everything and just return the information as a succinct model for backbone
+
+SO... server-side...
+
+budget = {
+  _id: 123456,
+  name: Budget Name,
+  limit: 100,
+  priority: 0,
+  meta: [
+    {
+      date: 1/1/14,
+      limit: 200
+    },
+    {
+      date: 2/1/14,
+      priority: 1
+    },
+    {
+      date: 3/1/14,
+      limit: 50,
+      priority: 5
+    }
+  ]
+}
+
+transaction = {
+  _id: 65432,
+  date: 1/5/14,
+  vendorId: 123456,
+  desc: wine purchase,
+  budgetId: 12345,
+  amount: 100
+}
+
+income = {
+  _id: 654321,
+  date: 1/8/14,
+  customerId: 56789,
+  desc: paycheck for x,y,z
+  bankId: 456789,
+  amount: 2000
+}
+
+STEP 1: receive first day of month as "date"
+STEP 2: get list of budgets - sort by priority
+STEP 3: loop through all budgets
+  Step 3a: Grab all transactions with this budgetId && before input date... add amounts together = total_expenses
+  Step 3b: Grab all incomes before input date... add amounts together = total_income
+  Step 3c: Check to see if there is a date in the budget's meta array that matches input date = date
+  Step 3d: If there is, then fill available values if they exist (limit &| priority)
+  Step 3e: Grab all incomes >= input_date... add amounts together = income_this_month
+  Step 3f: Grab all transactions >= input_date... add amounts together = expenses_this_month
+STEP 4: starting_balance = total_income - total_expenses
+STEP 5: left_to_spend = 
+STEP 6:
+  {
+    _id: _id,
+    date: input_date,
+    limit: limit,
+    priority: priority,
+    balance: income_this_month + starting_balance,
+    available: balance - expenses_this_month
+  }
+  --- ✄ -----------------------
+  OK! That's really good EXCEPT... now I have to deal with multiple banks... hmm....
+
+  In order to do this, I obviously need a bank priority list... there can be a default, and then custom inside the budget meta... well maybe...
+  I don't think I would want or need to change the bank priority per month... just per budget.... I mean... I guess I could change it per month too...
+  Yeah why not... I could have both
+
+  So I could add a new array to the budgets model that lists preferred banks
+  banks: [ _id, _id, _id, _id ] - these are sorted by custom priority... easy
+  Then, in the meta, you could have the same thing for a particular month if you wanted to as well
+
+  OK... so now that I know my bank priorities, I can do some thinking....
+
+  Expenses are done and over... I cannot change them. The only thing the bank priorities affect is INCOME allocation
+
+  This is where it gets a little tricky with this new model: I need not only to account for bank priorities, but for budget priorities
+
+  Now I can pretty much guarrantee that I will never request a single budget from the server... I will fetch all of them as a collection and manipulate them client-side
+
+  Knowing this, I can safely calculate the amount per bank and know that it will stay that way the whole time (because I have to go through all budgets to do this)
+
+  INSIDE STEP 3:
+    * When adding income (< this month && >= this month) together, I need to split it into separate banks
+    * I then need to add up the separate bank income amounts
+    total_income = [
+      {
+        bankId: 12356,
+        total: 300
+      },
+      {
+        bankId: 54322,
+        total: 200
+      }
+    ]
+    * Now I have totals for each bank account
+    * I need to see if there is a custom bank order in the budget... if so, loop through it... if not, query the banks and get the order from that and loop through that
+    * Loop through the banks in order...
+    * Fill the bank balance with as much of the total of the first one you can until it runs out, then choose the second one, etc, etc
+    * Break the loop when the balance is full
+
+    * Go on to the next budget, having saved what's left
+
+    * Once you run out of money in the banks, then all of the other balances get set to $0
+    --- ✄ -----------------------
+
+
+    OK OK OK... Now I've done quite a bit... Now I need to plan out the budget grab again...
+
+    First I need to figure out what I want the output to be..
+
+    budgets = {
+      _id: 3456789,
+      name: My Budget,
+      limit: 100,
+      spent: 80,
+      left: 20,
+      priority: 0,
+      banks: null OR [
+        123456789,
+        6543456,
+        454657,
+        436545678
+      ]
+    }
+
+    Actually... at this point.. I really think I need to consider what the interface will be like... then I can determine
+    how to receive the data....
+--- ✄ -----------------------
+

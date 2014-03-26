@@ -1,0 +1,24 @@
+{
+  "name": "BudgetBlox",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "*",
+    "ejs": "*",
+    "less-middleware": "*",
+    "mongodb": "*",
+    "mongoose": "*",
+    "node-validation": "*",
+    "datejs": "*",
+    "accounting": "*",
+    "rrule": "*",
+    "validator": "*"
+  },
+  "engines": {
+    "node": "*",
+    "npm": "*"
+  }
+}

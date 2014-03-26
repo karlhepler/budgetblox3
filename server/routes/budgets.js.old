@@ -1,0 +1,421 @@
+var mongoose = require('mongoose');
+var nodeValidation = require('node-validation');
+require('datejs');
+var accounting = require('accounting');
+var util = require('util');
+var defaults = require('./defaults');
+var models = require('../models/index');
+
+// Custom validator
+var BudgetInputValidator = function() {
+	nodeValidation.Validator.call(this);
+
+	// Make sure name isn't empty
+	this.ruleFor('name').isNotEmpty();
+
+	// Make sure dueDate is a proper bank
+	this.ruleFor('dueDate').is(function(value) {
+		return value != '' && Date.parse(value) === null ? false : true;
+	});
+
+	// Make sure the opening balance is a money-related number
+	this.ruleFor('limit').matches(/^\$?\d{1,3}(,?\d{3})*(\.\d{1,2})?$/);
+};
+util.inherits(BudgetInputValidator, nodeValidation.Validator);
+
+/**
+ * DEFINE ROUTES
+ */
+
+
+exports.list = function(req, res) {
+	// Register the bank schema
+	models.banks(req);
+
+	// Get today
+	var today = Date.today();
+
+	return models.budgets(req).find().sort('priority').populate('banks').exec(function(err, budgets) {
+		if (err || budgets == null) return res.send(404,err); else {
+
+			// First, go through all budgets and mark the changes to be made
+			var emptyBankBudgets = [];
+			var validDueDateBudgets = [];
+			for (var i = budgets.length - 1; i >= 0; i--) {
+				if ( budgets[i].banks.length === 0 ) {
+					emptyBankBudgets.push( budgets[i] );
+				}
+				if ( budgets[i].dueDate !== null ) {
+					validDueDateBudgets.push( budgets[i] );
+				}
+			};
+
+			// If there are any empty bank budgets...
+			if ( emptyBankBudgets.length === 0 ) return calcDueDates(); else {
+				// Get banks...
+				models.banks(req).find().sort('priority').exec(function(err, banks) {
+					if (err) return res.send(500,err); else {
+						// Fill up the bank budgets
+						for (var i = emptyBankBudgets.length - 1; i >= 0; i--) {
+							emptyBankBudgets[i].banks = banks;
+						};
+						return calcDueDates();
+					}
+				});
+			}
+
+			// Calculate the due dates
+			function calcDueDates() {
+				for (var i = validDueDateBudgets.length - 1; i >= 0; i--) {
+					var date = Date.parse(validDueDateBudgets[i].dueDate.origStr);
+					// If the date is earlier than today
+					if ( date.isBefore(today) ) {
+						// Alter the date so that it matches this month
+						date.set({ month: today.getMonth(), year: today.getFullYear() });
+						// If it's still before today, then add a month
+						if ( date.isBefore(today) ) {
+							date.add({ months: 1 });
+						}
+					}
+					// Set the date
+					validDueDateBudgets[i].dueDate.str = date.toString('M/d/yy');
+					validDueDateBudgets[i].dueDate.obj = date;
+				};
+
+				// Now to calculate balances
+				return getBankIncomeTotals();
+			}
+
+			// Sum all income transaction banks
+			function getBankIncomeTotals() {
+				models.transactions(req)
+							.aggregate()
+							.match({ 'date.obj':{$lte:today}, 'budget':null })
+							.unwind('meta')
+							.group({ _id:'$meta.bank', amount:{$sum:'$meta.amount.num'} })
+							.exec(function(err,bankIncomeTotals) {
+								if (err) return res.send(500,err); else {
+									if ( bankIncomeTotals.length === 0 ) return calcGoals(); else {
+										return calcGoals(bankIncomeTotals);
+									}
+								}
+							});
+			}
+
+			function calcGoals(bankIncomeTotals) {
+				var endOfMonth = Date.today().moveToLastDayOfMonth();
+
+				for (var i = budgets.length - 1; i >= 0; i--) {
+					var thisBudget = budgets[i];
+					// If the due date for this budget is far in the future...
+					if ( thisBudget.dueDate !== null && thisBudget.dueDate.obj.isAfter(endOfMonth) ) {
+						// Calculate the limit based on the number of months in between now and then
+						var numBetween = monthDiff(endOfMonth,thisBudget.dueDate.obj) + 1;
+						var newLimit = accounting.unformat(thisBudget.limit.num / numBetween).toFixed(2);
+
+						if ( numBetween > 1 ) {
+							// Store the limit in goal
+							thisBudget.goal = {
+								num: thisBudget.limit.num,
+								str: thisBudget.limit.str
+							};
+							
+							thisBudget.limit = {
+								num: newLimit,
+								str: accounting.formatNumber(newLimit,2)
+							};
+						}						
+					}
+				};
+
+				return fillBudgetBalances(bankIncomeTotals);
+			}
+
+			// Fill all of the budget balances with money!
+			function fillBudgetBalances(bankIncomeTotals) {
+				// First zero out all balances
+				for (var i = budgets.length - 1; i >= 0; i--) {
+					budgets[i].balance = {
+						num: 0,
+						str: '0.00'
+					};
+				};
+				// Now get started...
+				if ( typeof bankIncomeTotals === 'undefined' ) return subtractExpenses(); else {
+					// Go through each budget from start to end
+					for (var budgetIndex = 0; budgetIndex < budgets.length; budgetIndex++) {
+						var thisBudget = budgets[budgetIndex];
+						// Now go through each bank inside the budget
+						if ( thisBudget.balance.num < thisBudget.limit.num ) {
+							for (var budgetBankIndex = 0; budgetBankIndex < thisBudget.banks.length; budgetBankIndex++) {
+								var thisBudgetBank = thisBudget.banks[budgetBankIndex];
+								
+								// Select that bank from the bankIncomeTotals
+								var thisBankIncomeTotal;
+								for (var bankIncomeTotalsIndex = bankIncomeTotals.length - 1; bankIncomeTotalsIndex >= 0; bankIncomeTotalsIndex--) {
+									thisBankIncomeTotal = bankIncomeTotals[bankIncomeTotalsIndex];
+									// Test it and break if found
+									if ( thisBankIncomeTotal._id.equals(thisBudgetBank._id) ) {
+										break;
+									}
+								};
+
+								// I worked this all out on paper - I know it has to work
+								var limit = thisBudget.limit.num - thisBudget.balance.num;
+								var bal = thisBudget.balance.num;
+
+								if ( limit > thisBankIncomeTotal.amount ) {
+									thisBudget.balance = {
+										num: bal + thisBankIncomeTotal.amount,
+										str: accounting.formatNumber(bal + thisBankIncomeTotal.amount, 2)
+									};
+									thisBankIncomeTotal.amount = 0;
+								}
+								else {
+									thisBudget.balance = {
+										num: bal + limit,
+										str: accounting.formatNumber(bal + limit, 2)
+									};
+									thisBankIncomeTotal.amount -= limit;
+								}
+
+							};
+						}
+					};
+
+					// All the looping is done, so go to the next thing
+					return subtractExpenses();
+				}
+			}
+
+			function subtractExpenses() {
+				models.transactions(req)
+							.aggregate()
+							.match({ 'dat.obj':{$lte:today}, 'budgets':{$ne:null} })
+							.group({ _id:'$budget', amount:{$sum:'$amount.num'} })
+							.exec(function(err,result) {
+								if (err) return res.send(500,err); else {
+									if ( result.length === 0 ) return returnBudgets(); else {
+										for (var resultIndex = result.length - 1; resultIndex >= 0; resultIndex--) {
+											var thisAmount = result[resultIndex];
+
+											for (var i = budgets.length - 1; i >= 0; i--) {
+												var thisBudget = budgets[i];
+
+												if ( thisBudget._id.equals(thisAmount._id) ) {
+													var newBalance = thisBudget.balance.num - thisAmount.amount;
+													thisBudget.balance = {
+														num: newBalance,
+														str: accounting.formatNumber(newBalance,2)
+													};
+													break;
+												}
+											};
+										};
+
+										// Calculate the goals
+										return returnBudgets();
+									}
+								}
+							});				
+			}
+
+			function returnBudgets() {
+				return res.send(budgets);
+			}
+		}
+	});
+};
+
+exports.get = function(req, res) {
+	return defaults.get( models.budgets(req), req, res );
+};
+
+exports.create = function(req, res) {
+	// VALIDATE!
+	var validator = new BudgetInputValidator();
+	var validatorErrors = validator.validate(req.body);
+	if ( validatorErrors.length > 0 ) return res.send(400, validatorErrors); else {
+		// Make sure banks were selected if not set to default
+		if ( req.body.showBanks == 'true' && typeof req.body.banks == 'undefined' ) {
+			return res.send(400, [{ propertyName: 'banks' }]);
+		}
+		// Validation checks out - proceed -------------------------------
+
+		// Create the budget model
+		var budget = new models.budgets(req)({
+			name: req.body.name,
+			limit: {
+				num: accounting.unformat(req.body.limit).toFixed(2),
+				str: accounting.formatNumber(req.body.limit, 2)
+			},
+			priority: req.body.priority			
+		});
+
+		// Add the dueDate if it's there
+		if ( req.body.dueDate != '' ) {
+			budget.dueDate = {
+				origStr: Date.parse(req.body.dueDate).toString('M/d/yy'),
+				str: Date.parse(req.body.dueDate).toString('M/d/yy'),
+				obj: Date.parse(req.body.dueDate)
+			};
+		}
+		// Add banks if they are there
+		if ( typeof req.body.banks != 'undefined' ) {
+			// If it's an array, then just put it in
+			if ( req.body.banks instanceof Array ) {
+				budget.banks = req.body.banks;
+			}
+			// Otherwise, put it in manually
+			else {
+				budget.banks.push(req.body.banks);
+			}
+		}
+
+		// Calculate goal
+		var endOfMonth = Date.today().moveToLastDayOfMonth();
+		// If the due date for this budget is far in the future...
+		if ( budget.dueDate !== null && budget.dueDate.obj.isAfter(endOfMonth) ) {
+			// Calculate the limit based on the number of months in between now and then
+			var numBetween = monthDiff(endOfMonth,budget.dueDate.obj) + 1;
+			var newLimit = accounting.unformat(budget.limit.num / numBetween).toFixed(2);
+
+			if ( numBetween > 1 ) {
+				// Store the limit in goal
+				budget.goal = {
+					num: budget.limit.num,
+					str: budget.limit.str
+				};
+				
+				budget.limit = {
+					num: newLimit,
+					str: accounting.formatNumber(newLimit,2)
+				};
+			}
+		}
+
+		// Save the budget
+		budget.save(function(err) {
+			if (err) return res.send(500,err); else {
+				// Return the budget
+				return res.send(205);
+			}
+		});
+	}
+};
+
+exports.update = function(req, res) {
+	// Set dueDate to 00000000 if it's undefined so it doesn't trip the validator
+	var tmpDueDate, tmpLimit;
+	if ( req.body.dueDate === null || typeof req.body.dueDate === 'object' ) {
+		tmpDueDate = req.body.dueDate;
+		req.body.dueDate = '00000000';
+	}
+	if ( typeof req.body.limit === 'object' ) {
+		tmpLimit = req.body.limit;
+		req.body.limit = '00000000';
+	}
+
+	// VALIDATE!
+	var validator = new BudgetInputValidator();
+	var validatorErrors = validator.validate(req.body);
+	if ( validatorErrors.length > 0 ) return res.send(400, validatorErrors); else {		
+		// Make sure banks were selected if not set to default
+		if ( typeof req.body.showBanks !== 'undefined' && req.body.showBanks == 'true' && typeof req.body.banks == 'undefined' ) {
+			return res.send(400, [{ propertyName: 'banks' }]);
+		}
+		// Validation checks out - proceed -------------------------------
+
+		if ( req.body.dueDate === '00000000' ) {
+			req.body.dueDate = tmpDueDate;
+		}
+		if ( req.body.limit === '00000000' ) {
+			req.body.limit = tmpLimit;
+		}
+
+		// Find it!
+		return models.budgets(req).findById(req.params.id, function(err, budget) {
+			if (err || budget == null) return res.send(404,err); else {
+
+				// Set new values
+				budget.name = req.body.name;
+				budget.balance = req.body.balance;
+				budget.priority = req.body.priority;
+				budget.selected = req.body.selected;
+
+				
+				budget.banks = [];
+				if ( !(req.body.banks instanceof Array) ) {
+					req.body.banks = req.body.banks.split(','); // Not sure why, but for some reason banks comes in as a str sometimes...
+				}				
+				// Add banks if they are there
+				if ( typeof req.body.banks !== 'undefined' ) {
+					// If it's an array, then just put it in
+					if ( req.body.banks instanceof Array ) {
+						// If it has an ID field, just return that
+						for (var i = 0; i < req.body.banks.length; i++) {
+							var thisBank = req.body.banks[i];							
+							if ( typeof thisBank._id === 'undefined' ) {
+								budget.banks.push( thisBank );
+							}
+							else {
+								budget.banks.push( thisBank._id );
+							}
+						};
+					}
+					// Otherwise, put it in manually
+					else {
+						if ( typeof req.body.banks._id === 'undefined' ) {
+							budget.banks.push(req.body.banks._id);
+						}
+						else {
+							budget.banks.push(req.body.banks);
+						}						
+					}
+				}
+
+				// If limit isn't an object, make it one - otherwise, don't save it
+				if ( typeof req.body.limit !== 'object' ) {
+					budget.limit = {
+						num: accounting.unformat(req.body.limit).toFixed(2),
+						str: accounting.formatNumber(req.body.limit, 2)
+					};
+				}
+
+				// If dueDate isn't an object, make it one
+				if ( req.body.dueDate !== null && typeof req.body.dueDate !== 'object' ) {
+					budget.dueDate =  {
+						origStr: Date.parse(req.body.dueDate).toString('M/d/yy'),
+						str: Date.parse(req.body.dueDate).toString('M/d/yy'),
+						obj: Date.parse(req.body.dueDate)
+					}
+				}
+
+				// Save it!
+				budget.save(function(err) {
+					if (err) return res.send(500,err); else {
+						// The budget collection will need to be reset
+						return res.send(205);
+					}
+				});
+			}
+
+		});
+	}
+};
+
+exports.delete = function(req, res) {
+	return defaults.delete( models.budgets(req), req, res );
+};
+
+exports.deleteAll = function(req, res) {
+	return defaults.deleteAll( models.budgets(req), req, res );
+};
+
+function monthDiff(d1, d2) {
+    var months;
+    months = (d2.getFullYear() - d1.getFullYear()) * 12;
+    months -= d1.getMonth() + 1;
+    months += d2.getMonth();
+    return months <= 0 ? 0 : months;
+}

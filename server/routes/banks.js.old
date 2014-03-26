@@ -1,0 +1,402 @@
+var mongoose = require('mongoose');
+var nodeValidation = require('node-validation');
+require('datejs');
+var accounting = require('accounting');
+var util = require('util');
+var defaults = require('./defaults');
+var models = require('../models/index');
+
+// Custom validator
+var BankInputValidator = function() {
+	nodeValidation.Validator.call(this);
+
+	// Make sure name isn't empty
+	this.ruleFor('name').isNotEmpty();
+
+	// Make sure dateOpened is a proper bank
+	this.ruleFor('dateOpened').is(function(value) {
+		return Date.parse(value) === null ? false : true;
+	});
+
+	// Make sure the opening balance is a money-related number
+	this.ruleFor('openingBalance').matches(/^\$?\d{1,3}(,?\d{3})*(\.\d{1,2})?$/);
+};
+util.inherits(BankInputValidator, nodeValidation.Validator);
+
+/**
+ * DEFINE ROUTES
+ */
+
+
+exports.list = function(req, res) {
+	// Register transaction schema
+	models.transactions(req);
+
+	// When listing, we need to figure out the balance & expected income
+	return models.banks(req).find().sort('priority').populate('openingTransaction').exec(function(err, banks) {
+		if (err || banks == null) return res.send(404,err); else {
+			return exports.calcBalExp(banks, req, function(banks) {
+				return res.send(banks);
+			});
+		}
+	});
+};
+
+exports.get = function(req, res) {
+	return models.banks(req).findById( req.params.id, function(err, bank) {
+		if (err || bank == null) res.send(404,err); else {
+			return exports.calcBalExp(bank, req, function(bank) {
+				return res.send(bank);
+			});
+		}		
+	});
+};
+
+exports.create = function(req, res) {
+	// VALIDATE!
+	var validator = new BankInputValidator();
+	var validatorErrors = validator.validate(req.body);
+	if ( validatorErrors.length > 0 ) return res.send(400, validatorErrors); else {
+		// Validation checks out - proceed -------------------------------
+
+		// Parse values
+		var amount = {
+			num: accounting.unformat(req.body.openingBalance).toFixed(2),
+			str: accounting.formatNumber(req.body.openingBalance, 2)
+		};
+		var date = {
+			obj: Date.parse(req.body.dateOpened),
+			str: Date.parse(req.body.dateOpened).toString('MMMM d, yyyy')
+		};
+		var zero = {
+			num: accounting.unformat(0).toFixed(2),
+			str: accounting.formatNumber(0, 2)
+		};
+
+		// Get today
+		var today = Date.today();
+
+		// Create the bank - balance vs. expectedIncome depends on the date
+		var bank = new models.banks(req)({
+			name: req.body.name,
+			balance: Date.compare(today,date.obj) < 0 ? zero : amount,
+			expectedIncome: Date.compare(today,date.obj) < 0 ? amount : zero,
+			priority: req.body.priority
+		});
+
+		// Create the customer (use bank name)
+		var contact = new models.contacts(req)({
+			name: req.body.name,
+			isPayee: false
+		});
+
+		// Create the initial transaction
+		var transaction = new models.transactions(req)({
+			date: date,
+			desc: 'Opening Balance',
+			meta: [{
+				amount: amount
+			}]
+		});
+
+		// Save the bank
+		bank.save(function(err) {
+			if (err) return res.send(500,err); else {
+				// Save the contact
+				contact.save(function(err) {
+					if (err) {
+						bank.remove();
+						return res.send(500,err);
+					}
+					else {
+						// Now update the transaction's values with the ids of the saved models
+						transaction.contact = contact._id;
+						transaction.meta[0].bank = bank._id;
+
+						// Save the transaction
+						transaction.save(function(err) {
+							if (err) {
+								bank.remove();
+								contact.remove();
+								return res.send(500,err);
+							}
+							else {
+								// Save this transaction into the bank
+								bank.openingTransaction = transaction._id;
+
+								// Save the bank again - this time it contains the transaction id
+								bank.save(function(err) {
+									if (err) return res.send(500,err); else {
+										// Now populate the fields
+										bank.populate('openingTransaction', function(err) {
+											if (err) return res.send(500,err); else {
+												bank.openingTransaction.populate('contact', function(err) {
+													if (err) return res.send(500,err); else {
+														return res.send(201,bank);
+													}
+												});
+											}
+										});
+									}
+								});
+							}
+						});
+					}
+				});
+			}
+		});
+	}
+};
+
+exports.update = function(req, res) {	
+	// Set openingBalance to 00000000 if it's undefined so it doesn't trip the validator
+	if ( typeof req.body.openingBalance == 'undefined' ) {
+		req.body.openingBalance = '00000000';
+	}
+	if ( typeof req.body.dateOpened == 'undefined' ) {
+		req.body.dateOpened = '00000000';
+	}
+
+	// VALIDATE!
+	var validator = new BankInputValidator();
+	var validatorErrors = validator.validate(req.body);
+	
+	if ( validatorErrors.length > 0 ) return res.send(400, validatorErrors); else {
+		// Validation checks out - proceed -------------------------------
+		
+		// Register transaction schema
+		models.transactions(req);
+
+		// Find the bank, populate the transaction, and update it
+		return models.banks(req).findById(req.params.id).populate('openingTransaction').exec(function(err, bank) {
+			if (err || bank == null) return res.send(404,err); else {
+				// Set new values
+				for ( var field in models.banks(req).schema.paths ) {
+					if ( (field !== '_id') && (field !== '__v') && (field !== 'openingTransaction') ) {
+						if (req.body[field] !== undefined) {
+							bank[field] = req.body[field];
+						}
+					}
+				}
+
+				// Set openingTransaction values if they are real
+				if ( req.body.dateOpened !== '00000000' || req.body.openingBalance !== '00000000' ) {
+					// Changed date opened
+					if ( req.body.dateOpened !== '00000000' )
+						bank.openingTransaction.date = {
+							obj: Date.parse(req.body.dateOpened),
+							str: Date.parse(req.body.dateOpened).toString('MMMM d, yyyy')
+						};
+					// Change opening balance
+					if ( req.body.openingBalance !== '00000000' )
+						// Go through each meta until you find this bank
+						for (var i = bank.openingTransaction.meta.length - 1; i >= 0; i--) {
+							var metaBankID = bank.openingTransaction.meta[i].bank;
+							if ( bank._id.equals(metaBankID) ) {
+								// Set the opening balance transaction amount
+								bank.openingTransaction.meta[i].amount = {
+									num: accounting.unformat(req.body.openingBalance).toFixed(2),
+									str: accounting.formatNumber(req.body.openingBalance, 2)
+								};
+								// Break the loop
+								break;
+							}
+						};
+
+					// Save the opening transaction
+					bank.openingTransaction.save(function(err) {
+						if (err) return res.send(500,err); else {
+							exports.calcBalExp(bank, req, function(bank) {								
+								returnBank(bank);
+							});
+						}
+					});				
+				}
+				// Neither dateOpened nor openingBalance were changed
+				else {
+					// Save the bank
+					bank.save(function(err) {
+						if (err) return res.send(500,err);
+					});
+					// Now return the bank
+					return returnBank(bank);
+				}
+				
+				function returnBank(bank) {
+					// Register contact schema
+					models.contacts(req);
+					// Get the transaction's contact
+					bank.openingTransaction.populate('contact', function(err) {
+						// Update the contact name with the new bank name
+						if (err) return res.send(500,err); else {
+							bank.openingTransaction.contact.name = req.body.name;
+							
+							// Save the contact
+							bank.openingTransaction.contact.save(function(err) {
+								if (err) {
+									return res.send(500);
+								}
+							});
+
+							// Now return the bank
+							return res.send(200,bank);
+						}
+					});
+				}
+			}
+		});
+	}
+};
+
+exports.delete = function(req, res) {
+	// When deleting, we need to delete the contact and all transactions
+	return models.banks(req).findById(req.params.id, function(err, bank) {
+		if (err || bank == null) return res.send(404,err); else {
+			// Delete all transactions with this bank id
+			models.transactions(req).find({ 'bank': bank._id }).remove().exec(function(err) {
+				if (err) return res.send(500,err);
+			});
+			// Delete the contact that has the same name as this bank
+			models.contacts(req).find({ 'name': bank.name }).remove().exec(function(err) {
+				if (err) return res.send(500,err);
+			});
+			// Finally, delete this bank
+			bank.remove(function(err) {
+				if (err) return res.send(500,err); else {
+					return res.send(204);
+				}
+			});
+		}
+	});
+};
+
+exports.deleteAll = function(req, res) {
+	// Delete all contacts that have bank names
+	models.banks(req)
+				.aggregate()
+				.group({ _id: '$name' })
+				.exec(function(err, result) {
+					if (err) return res.send(500,err); else {
+						if ( result.length > 0 ) {
+							for (var i = result.length - 1; i >= 0; i--) {
+								// Remove contact that matches this name
+								models.contacts(req).find({'name':result[i]._id}).remove().exec(function(err) {
+									if (err) return res.send(500,err);
+								});
+							};
+						}
+					}
+				});
+
+	// Delete all transactions
+	models.transactions(req).remove(function(err) {
+		if (err) return res.send(500,err);
+	});
+	// Delete all banks
+	models.banks(req).remove(function(err) {
+		if (err) return res.send(500,err); else {
+			res.send(204);
+		}
+	});
+};
+
+exports.calcBalExp = function(banks, req, callback) {
+	// First make sure banks is an array - if not, then make it one
+	if ( !(banks instanceof Array) ) {
+		var temp = banks;
+		banks = [];
+		banks[0] = temp;
+	}
+
+	// Get today
+	var today = Date.today();
+
+	// Loop through all banks and zero out the balances and expectedIncomes
+	for (var i = banks.length - 1; i >= 0; i--) {
+		banks[i].balance = {
+			num: 0,
+			str: '0.00'
+		};
+		banks[i].expectedIncome = {
+			num: 0,
+			str: '0.00'
+		};
+	};	
+
+	// Balance sum aggregation
+	models.transactions(req)
+		.aggregate()
+		.match({ 'date.obj':{$lte:today} })
+		.unwind('meta')
+		.group({ _id: '$meta.bank', balance: {$sum: '$meta.amount.num'} })
+		.exec(function(err, result) {
+			if (err) return res.send(500,err); else {
+				if ( result.length > 0 ) {
+					// Loop through each result
+					for (var resultIndex = result.length - 1; resultIndex >= 0; resultIndex--) {
+						var thisResult = result[resultIndex];
+						// Loop through each bank
+						for (var bankIndex = banks.length - 1; bankIndex >= 0; bankIndex--) {
+							var thisBank = banks[bankIndex];
+							if ( thisBank._id.equals(thisResult._id) ) {
+								// Update the bank
+								thisBank.balance = {
+									num: accounting.unformat(thisResult.balance).toFixed(2),
+									str: accounting.formatNumber(thisResult.balance, 2)
+								};
+								// Save the bank
+								thisBank.save(function(err) {
+									if (err) return res.send(500,err);
+								});
+								// Break this loop, effectively going to the next result
+								break;
+							}
+						};
+					};
+				}
+			}			
+			// Expected Income sum aggregation
+			// NEED TO FIX HOW BANKS UPDATE TRANSACTIONS!!!!!
+			models.transactions(req)
+						.aggregate()
+						.match({ 'date.obj':{$gt:today}, 'budget':null })
+						.unwind('meta')
+						.group({ _id: '$meta.bank', expectedIncome: {$sum: '$meta.amount.num'} })
+						.exec(function(err, result) {
+							if (err) return res.send(500,err); else {
+								if ( result.length > 0 ) {
+									// Loop through each result
+									for (var resultIndex = result.length - 1; resultIndex >= 0; resultIndex--) {
+										var thisResult = result[resultIndex];
+										// Loop through each bank
+										for (var bankIndex = banks.length - 1; bankIndex >= 0; bankIndex--) {
+											var thisBank = banks[bankIndex];
+											if ( thisBank._id.equals(thisResult._id) ) {
+												// Update the bank
+												thisBank.expectedIncome = {
+													num: accounting.unformat(thisResult.expectedIncome).toFixed(2),
+													str: accounting.formatNumber(thisResult.expectedIncome, 2)
+												};
+												// Save the bank
+												thisBank.save(function(err) {
+													if (err) return res.send(500,err);
+												});
+												// Break the loop, thus going to the next result
+												break;
+											}
+										};
+									};
+								}
+							}
+
+							// FINALLY RETURN THE BANKS TO THE CALLBACK
+							if ( typeof callback === 'function' ) {
+								// If temp wasn't created, that means it's originally an array
+								if ( typeof temp === 'undefined' )
+									callback(banks);
+								else
+									callback(banks[0]);
+							}
+						});
+		});
+}

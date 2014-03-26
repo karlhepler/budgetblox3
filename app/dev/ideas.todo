@@ -1,0 +1,35 @@
+--- ✄ -----------------------
+TODO
+--- ✄ -----------------------
+ ☐ Show bank calculation on add/edit expense - change back-end to use this
+ ☐ Edit expense
+ ☐ Edit income
+ ☐ Edit budget
+ ☐ Delete expense
+ ☐ Delete income
+ ☐ Delete budget
+ ☐ Delete bank
+ ☐ Month/Year
+ ☐ drag-and-drop budget offset
+ ☐ drag-and-drop bank transfer
+ ☐ drag-and-drop needs also to incorporate a limit transfer
+ ☐ When adding a bank, show the bank list - same for budget
+ ☐ Either Budgets OR Banks ALWAYS needs to be open
+ ☐ I need to adjust the size of ui-sortable, which is only accessable as the .$el of the collection views
+     However - this is pretty tricky because it shows height of 0 during render because the view hasn't
+     been populated yet
+ ☐ Redo all forms to make them responsive: http://getbootstrap.com/css/#forms-control-sizes
+ ☐ I want to change the pre-fill for the edit modals to be value instead of placeholders - this will likely affect the backend as well
+ ☐ Consider using a different date picker - I like the full-screen date picker for mobile though
+ ☐ The "today" date variable in server needs to be moved out of global scope - it doesn't update unless the server is restarted
+ ☐ Grippy needs to be wider
+ ☐ Blue selecty thing needs to be on right side of grippy... or actually... put it under grippy
+
+--- ✄ -----------------------
+DONE
+--- ✄ -----------------------
+ ✔ Drag-and-drop needs to work on phones - touchpunch might be the answer http://touchpunch.furf.com/ @done (14-03-20 15:32)
+ ✔ Also make sure to include that phone plugin that makes key presses instant @done (14-03-20 15:32)
+ ✔ REDO the entire preferred banks system in editBudget - server-side too @done (14-03-19 14:54)
+ ✔ Update bank expected / balance with daily fetch w/ override "refresh" @done (14-03-12 22:33)
+ ✔ Income / Expense totals @done (14-03-12 23:25)

@@ -1,0 +1,202 @@
+define([
+        // Initializers
+        'marionette',
+        'templates',
+
+        // Views -----------
+        'views/collection/BudgetList_CollectionView',
+        'views/collection/BankList_CollectionView',
+        'views/collection/TransactionList_CollectionView',
+
+        // Collections -----------
+        'collections/Budget_Collection',
+        'collections/Bank_Collection',
+        'collections/Transaction_Collection',
+
+        // Misc -------------------
+        'jqueryui/sortable',
+        'jqueryui/draggable',
+        'jqueryui/droppable',
+        'pickadate',
+        'fittext',
+        'smartresize'
+    ],
+    function(
+        // Initializers
+        Marionette,
+        templates,
+
+        // Views ------------
+        BudgetList_CollectionView,
+        BankList_CollectionView,
+        TransactionList_CollectionView,
+
+        // Collections ------------
+        Budget_Collection,
+        Bank_Collection,
+        Transaction_Collection
+    ) {
+        return Marionette.Layout.extend({
+
+            template: templates.Timeline_Layout,
+
+            id: 'timeline-container',
+
+            onShow: function() {
+
+                this.$el.find('.budget-bank-selector').click(function(e) {
+                    e.preventDefault();
+
+                    $(this).parent().toggleClass('active');
+
+                    if ( $(this).parents('tbody').children().hasClass('active') && $(this).parents('.panel').find('.panel-title-buttons').css('opacity') == 0 ) {
+                        $(this).parents('.panel').find('.panel-title-buttons').css('opacity',1);
+                    }
+                    else if ( !$(this).parents('tbody').children().hasClass('active') && $(this).parents('.panel').find('.panel-title-buttons').css('opacity') == 1 ) {
+                        $(this).parents('.panel').find('.panel-title-buttons').css('opacity',0);
+                    }
+                });
+
+                this.$el.find('#budget-list, #bank-list').css({
+                    'max-height': $(window).height() - $('#date-container').outerHeight(true) - $('#balance-container').outerHeight(true) - ($('#budget-bank-container h3').outerHeight(true) * 2) - $('#budget-bank-container h3').height() + 28
+                });
+                $('#main').height( $(window).height() );
+                this.$el.find('#transactions-search').width( $('#transaction-container').outerWidth() - 32 );
+
+                $(window).on('debouncedresize', function(e) {
+                    $('#budget-list, #bank-list').css({
+                        'max-height': $(this).height() - $('#date-container').outerHeight(true) - $('#balance-container').outerHeight(true) - ($('#budget-bank-container h3').outerHeight(true) * 2)
+                    });
+                    $('#main').height( $(window).height() );                    
+                });
+                $(window).on('resize', function() {
+                    $('#transactions-search').width( $('#transaction-container').outerWidth() - 32 );
+                });
+
+              // Pickadate when clicking calendar icon
+              this.$el.find('#date').pickadate({
+                selectYears: true,
+                selectMonths: true
+              });
+
+              this.$el.find('#date-container').fitText(1.6);
+
+              // Search on keyup
+              this.$el.find('#transactions-search-input').on('keyup', function() {
+                // Add showing if there is a value
+                if ( $(this).val().length > 0 )
+                    $(this).next('.input-clear').css('opacity',1);
+                else
+                    $(this).next('.input-clear').css('opacity',0);
+
+                // Perform a search here....
+              });
+
+              // Clear the form if input-clear is clicked
+              this.$el.find('.input-clear').click(function() {
+                $('#transactions-search')[0].reset();
+                $(this).css('opacity',0);
+              });
+
+              // Configure sortable
+              this.$el.find('#budget-list tbody, #bank-list tbody').sortable({
+                axis: 'y',
+                scroll: true,
+                scrollSensitivity: 35,
+                helper: 'clone',
+                handle: '.grippy',
+                cursor: 'ns-resize',
+                start: function(e, ui) {
+                    $(this).css('cursor', 'ns-resize');
+                },
+                stop: function(e, ui) {
+                    $(this).css('cursor', 'move');
+                    console.log('SORTING HAPPENED!');
+                }
+              });
+
+              // Configure drag and drop budget icons
+              var dragger = '#budget-bank-container .in .fund-icon-container:first';
+              this.$el.find('.fund-icon').draggable({
+                helper: function() {
+                    return $(this).clone().addClass('pos-relative').width( $(this).outerWidth(true) );
+                },
+                scroll: true,
+                scrollSensitivity: 35,
+                containment: '.sidebar',
+                appendTo: dragger,
+                start: function(e, ui) {
+                    $(dragger).css('cursor', 'no-drop');
+                },
+                stop: function(e, ui) {
+                    $(dragger).css('cursor', 'move');
+                    $('#budget-bank-container .in').removeClass('scroll-visible');    
+                },
+                drag: function(e, ui) {
+                    console.log( ui.offset.left + ui.helper.outerWidth(true) + 2 > $('.sidebar').width() );
+
+                    if ( (ui.offset.top >= $('#budget-bank-container .in tbody').offset().top && $('#budget-bank-container .in').hasClass('scroll-visible')) ||                         
+                         (ui.offset.top < $('#budget-bank-container .in tbody').offset().top && !$('#budget-bank-container .in').hasClass('scroll-visible')) ) {
+
+                        $('#budget-bank-container .in').toggleClass('scroll-visible');
+                        if ( $('#budget-bank-container .in').height() ==  $('#budget-bank-container .in>table').height() ) {
+                            $('#budget-bank-container .in').toggleClass('undo-scroll-margin');
+                        }
+                    }
+                }
+              }).droppable({
+                over: function(e, ui) {
+                    console.log('hi');
+                    $(dragger).css('cursor','copy');
+                    $(this).addClass('bg-color-income');
+                    ui.draggable.addClass('bg-color-expense');
+                },
+                out: function(e, ui) {
+                    console.log('bye');
+                    $(dragger).css('cursor', 'no-drop');
+                    $(this).removeClass('bg-color-income');
+                    ui.draggable.removeClass('bg-color-expense');
+                },
+                drop: function(e, ui) {
+                    console.log(ui.draggable, $(this));                    
+                    $('#scroll-stopper').show();
+                    console.log($(this));
+                    $(this).popover({
+                        container: 'body',
+                        placement: 'right',
+                        trigger: 'manual',
+                        html: true,
+                        title: 'MOVE FUNDS <button type="button" class="close" aria-hidden="true">&times;</button>',
+                        content: '<form role="form"><table><tbody><tr><td><input style="width:5em;" type="text" class="form-control" autofocus required></td><td><span style="margin:0 10px;" class="fancy">of</span><span>'+ui.draggable.text()+'</span></td></tr></tbody></table</form>'
+                    })
+                    .popover('show');
+
+                    var $that = $(this);
+                    $('#scroll-stopper, .popover .close').click(function(e) {
+                        $that.popover('destroy');
+                        $('#scroll-stopper').hide();
+                        $that.removeClass('bg-color-income');
+                        ui.draggable.removeClass('bg-color-expense');
+                    });
+                }
+              });
+            },
+
+            // regions: {
+            // 	balanceContainer: '#balance-container',
+            // 	budgetsContainer: '#budgets-container',
+            // 	banksContainer: '#banks-container'
+            // },
+
+            // onShow: function() {
+            // 	var budget_collection = new Budget_Collection();
+
+            // 	this.budgetsContainer.show(
+            // 		new BudgetList_CollectionView( budget_collection )
+            // 	);
+
+            // 	budget_collection.fetch();
+            // }
+
+        });
+    });

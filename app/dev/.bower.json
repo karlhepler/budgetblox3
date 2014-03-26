@@ -1,0 +1,29 @@
+{
+	"name": "Budget Blox",
+	"version": "2.0.0",
+	"dependencies": {					
+		"requirejs": null,
+		"bootstrap": null,
+        "backbone.marionette": null,
+        "jquery": null,
+        "backbone-amd": null,
+        "underscore-amd": null,		
+		"backbone.babysitter": null,
+    	"backbone.wreqr": null,
+    	"requirejs-tpl": null,    	
+    	"requirejs-plugins": null,
+    	"alertify": null,
+        "backbone-filtered-collection": null,
+        "accounting": null,
+        "jquery-maskmoney": null,
+        "pickadate": null,
+        "jquery-ui-amd": null,
+        "bootstrap-select": null,
+        "FitText.js": null,
+        "jquery-smartresize": null,
+        "chosen-build": null,
+        "typeahead.js": null,
+        "fastclick": null,
+        "jqueryui-touch-punch": null
+	}
+}
