@@ -2,9 +2,30 @@
   <div class="modal-header">
     <h4 class="modal-title"></h4>
   </div>
-  <form role="form" class="form-table">
+  <form role="form" class="form-inline">
     <div class="modal-body">
-      <div class="form-group">
+
+      
+      <fieldset>
+          <div class="col-md-12">
+              <label for="date">Date &amp; Time</label>
+          </div>
+          <div class="col-md-12">
+            <div class="form-group">
+                <input type="text" required="" class="form-control" placeholder="Enter a date" id="date" name="date">
+            </div>
+            <div class="form-group">
+                <label for="time">@</label>
+            </div>
+            <div class="form-group">
+                <input type="text" required="" class="form-control" placeholder="Enter a time" id="time" name="time">                
+            </div>
+          </div>          
+      </fieldset>
+      
+
+
+      <!-- <div class="form-group">
         <label for="name">I opened an account at</label>
         <input type="text" class="form-control" id="name" name="name" placeholder="Cash Box, Big Bank Company..." required autofocus>
       </div>
@@ -13,7 +34,7 @@
         <input type="text" class="form-control" name="dateOpened" id="date" placeholder="1/31, Tuesday..." required>
         <label for="amount">starting with</label>
         <input type="text" class="form-control" name="openingBalance" id="amount" placeholder="300.00" pattern="^\$?\d{1,3}(,?\d{3})*(\.\d{1,2})?$" required>
-      </div>
+      </div> -->
     </div>
     
     <!-- Hidden input for priority just so it shows up in the serialization -->
