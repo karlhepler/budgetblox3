@@ -6756,6 +6756,82 @@ form.form-table .modal-footer {
 form.form-table #btn-date {
   margin-left: -10px;
 }
+form.form-custom .form-group {
+  border: 1px solid #eeeeee;
+  padding: 10px;
+  border-radius: 5px;
+  margin-left: 0;
+  margin-right: 0;
+  /* Medium devices (desktops, 992px and up) */
+}
+form.form-custom .form-group [class^="col-md-"] {
+  padding-left: 0;
+  padding-right: 0;
+}
+@media (min-width: 992px) {
+  form.form-custom .form-group [class^="col-md-"] {
+    padding-left: 0.2em;
+    padding-right: 0.2em;
+  }
+  form.form-custom .form-group [class^="col-md-"]:first-child {
+    padding-left: 0;
+  }
+  form.form-custom .form-group [class^="col-md-"]:last-child {
+    padding-right: 0;
+  }
+}
+form.form-custom .form-group label {
+  padding: 0;
+  height: 34px;
+  padding-top: 13px;
+}
+form.form-custom .form-group label .btn-google {
+  margin-top: -13px;
+}
+form.form-custom .form-group input {
+  height: 34px;
+  padding: 0;
+  padding-top: 1em;
+  border-color: white;
+  border-bottom: 4px solid white;
+  -webkit-box-shadow: none;
+  box-shadow: none;
+  -webkit-transition: border-color 0.5s;
+  transition: border-color 0.5s;
+}
+form.form-custom .form-group input:hover {
+  border-bottom: solid #eeeeee;
+}
+form.form-custom .form-group input:focus {
+  -webkit-box-shadow: none;
+  box-shadow: none;
+  border-bottom: solid #eeeeee;
+}
+form.form-custom .form-group input::-webkit-input-placeholder {
+  /* WebKit browsers */
+  color: #eeeeee;
+}
+form.form-custom .form-group input:-moz-placeholder {
+  /* Mozilla Firefox 4 to 18 */
+  color: #eeeeee;
+}
+form.form-custom .form-group input::-moz-placeholder {
+  /* Mozilla Firefox 19+ */
+  color: #eeeeee;
+}
+form.form-custom .form-group input:-ms-input-placeholder {
+  /* Internet Explorer 10+ */
+  color: #eeeeee;
+}
+form.form-custom .form-group:last-of-type,
+form.form-custom .modal-body .panel-group:last-of-type {
+  margin-bottom: 0;
+}
+form.form-custom .modal-footer {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
 .modal-header > h4 {
   text-align: center;
 }

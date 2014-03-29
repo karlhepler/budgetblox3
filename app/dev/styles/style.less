@@ -551,6 +551,90 @@ form.form-table {
 	}
 }
 
+// My custom form class
+form.form-custom {
+	
+	.form-group {
+		border: 1px solid @color-lightlightgrey;
+		padding: 10px;
+		border-radius: 5px;
+		margin-left: 0;
+		margin-right: 0;
+
+		[class^="col-md-"] {
+			padding-left: 0;
+			padding-right: 0;
+		}
+		/* Medium devices (desktops, 992px and up) */
+		@media (min-width: @screen-md-min) {
+			[class^="col-md-"] {
+				padding-left: 0.2em;
+				padding-right: 0.2em;
+
+				&:first-child {
+					padding-left: 0;	
+				}
+				&:last-child {
+					padding-right: 0;	
+				}
+			}
+		}
+
+		label {
+			padding: 0;
+			height: 34px;
+			padding-top: 13px;
+
+			.btn-google {
+				margin-top: -13px;
+			}
+		}
+
+		input {
+			height: 34px;
+			padding: 0;
+			padding-top: 1em;
+			border-color: white;
+			border-bottom: 4px solid white;
+
+			.box-shadow(none);
+			.transition(border-color 0.5s);
+
+			&:hover {
+				border-bottom: solid @color-lightlightgrey;
+			}
+			&:focus {
+				.box-shadow(none);
+				border-bottom: solid @color-lightlightgrey;
+			}
+			&::-webkit-input-placeholder { /* WebKit browsers */
+			    color: @color-lightlightgrey;
+			}
+			&:-moz-placeholder { /* Mozilla Firefox 4 to 18 */
+			    color: @color-lightlightgrey;
+			}
+			&::-moz-placeholder { /* Mozilla Firefox 19+ */
+			    color: @color-lightlightgrey;
+			}
+			&:-ms-input-placeholder { /* Internet Explorer 10+ */
+			    color: @color-lightlightgrey;
+			}
+		}
+
+	}
+
+	.form-group:last-of-type,
+	.modal-body .panel-group:last-of-type {
+		margin-bottom: 0;
+	}
+
+	.modal-footer {
+		margin-top: 0;
+		padding-top: 0;
+		border-top: none;
+	}
+}
+
 .modal-header > h4 {
 	text-align: center;
 }

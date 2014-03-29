@@ -150,6 +150,10 @@ function(
                 .on('hidePanelTitleButtons', function(view) {
                     this.ui.budgetPanelTitleBtns.hide();
                 }, this);
+
+            // For testing purposes, show the bank modal immediately
+            // TODO: Remove this once finished with testing
+            this.showAddBankModal();
         },
 
         initialize: function() {
@@ -433,7 +437,7 @@ function(
 
         showModal: function(e, view, collection, fn) {
             // Prevent default action
-            e.preventDefault();
+            if (typeof e !== 'undefined') e.preventDefault();
 
             // Create the modal region
             var modal = new Modal_Region({el:'#modal'});
