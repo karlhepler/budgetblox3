@@ -44,7 +44,7 @@ function(
 
         onShow: function() {
             var that = this;
-            console.log('[ItemView] Edit Bank');            
+            console.log('[ItemView] Edit Bank');          
 
             // Initialize pickadate
             // NOTE: I CHANGED THE PICKADATE CODE - line picker.js:94 to force "button" type
