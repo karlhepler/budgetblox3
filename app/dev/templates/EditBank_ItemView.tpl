@@ -5,7 +5,7 @@
   <form role="form" class="form-horizontal form-custom">
     <div class="modal-body">
 
-      <!-- TODO: Although I originally liked the "conversational" form... I think it gets too confusing later on -->
+      
 
       <div class="form-group">
         <!-- Bank Name -->
