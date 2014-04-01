@@ -10,6 +10,7 @@
 @import 'custom_mixins';
 @import 'custom_navbar';
 @import 'offcanvas';
+@import '../scripts/vendor/iCheck/skins/flat/blue.css';
 
 @import url(http://fonts.googleapis.com/css?family=Tangerine);
 @import url(http://fonts.googleapis.com/css?family=Open+Sans:400,700,600);
@@ -579,9 +580,10 @@ form.form-table {
 	height: 30px;
 	float: left;
 	cursor: ns-resize;
-	border-left-width: 2px;
-	border-left-style: solid;
-	border-color: transparent;	
+	border-right-width: 4px;
+	border-right-style: solid;
+	border-color: transparent;
+	margin-right: 5px;
 }
 .modal-body .grippy {
 	background: url(../images/grippy_large.png) repeat-y 0 50%;
@@ -775,4 +777,10 @@ form.form-table {
 .picker__nav--next,
 .picker__nav--prev {
 	height: 40px;
+}
+
+#budget-bank-container .icheckbox_flat-blue {
+	float: left;
+	margin-top: 5px;
+	margin-right: 10px;
 }

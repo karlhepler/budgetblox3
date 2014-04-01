@@ -1,4 +1,4 @@
-define(['marionette', 'templates'], function(Marionette, templates) {
+define(['marionette', 'templates', 'iCheck'], function(Marionette, templates) {
 	return Marionette.ItemView.extend({
 
 		template: templates.BankListItem_ItemView,
@@ -12,7 +12,8 @@ define(['marionette', 'templates'], function(Marionette, templates) {
 			fundIconDragging: '.fund-icon.ui-draggable-dragging',
 			name: '.h4',
 			expectedIncome: '.bank-expected-income-text',
-			balance: '.fund-icon'
+			balance: '.fund-icon',
+			checkbox: 'input[type="checkbox"]'
 		},
 
 		onShow: function() {
@@ -63,6 +64,11 @@ define(['marionette', 'templates'], function(Marionette, templates) {
 
 		initDOM: function() {
 			var that = this;
+
+			// Setup the checkboxes
+			this.ui.checkbox.iCheck({
+				checkboxClass: 'icheckbox_flat-blue'
+			});
 
 			// Set this as active if the model is selected
 			if ( this.model.get('selected') === true ) {

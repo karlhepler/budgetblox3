@@ -1,4 +1,4 @@
-define(['marionette', 'templates'], function(Marionette, templates) {
+define(['marionette', 'templates', 'iCheck'], function(Marionette, templates) {
 	return Marionette.ItemView.extend({
 
 		template: templates.BudgetListItem_ItemView,
@@ -15,7 +15,8 @@ define(['marionette', 'templates'], function(Marionette, templates) {
 			dueDate: '.budget-dueDate-text',
 			goal: '.budget-goal-text',
 			limit: '.budget-limit-text',
-			desc: '.desc'
+			desc: '.desc',
+			checkbox: 'input[type="checkbox"]'
 		},
 
 		onShow: function() {
@@ -92,6 +93,11 @@ define(['marionette', 'templates'], function(Marionette, templates) {
 
 		initDOM: function() {
 			var that = this;
+
+			// Setup the checkboxes
+			this.ui.checkbox.iCheck({
+				checkboxClass: 'icheckbox_flat-blue'
+			});
 
 			// Set this as active if the model is selected
 			if ( this.model.get('selected') === true ) {

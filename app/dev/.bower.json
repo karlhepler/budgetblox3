@@ -24,6 +24,7 @@
         "chosen-build": null,
         "typeahead.js": null,
         "fastclick": null,
-        "jqueryui-touch-punch": null
+        "jqueryui-touch-punch": null,
+        "iCheck": null
 	}
 }

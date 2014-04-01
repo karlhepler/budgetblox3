@@ -87,27 +87,6 @@ define([
 		onRender: function() {
 			// Initialize the DOM
 			this.initDOM();
-
-			// Adjust size
-			// var newHeight = this.ui.sidebarContainer.height()
-			//                 - this.ui.dateContainer.outerHeight(true)
-			//                 - this.ui.balanceContainer.outerHeight(true)
-			//                 - this.ui.budgetPanelTitle.outerHeight(true)
-			//                 - this.ui.bankPanelTitle.outerHeight(true);
-
-			// this.ui.budgetListItems.height( newHeight );
-			// this.ui.bankListItems.height( newHeight );
-
-			// $(window).on('debouncedresize', function(e) {
-			//     var newHeight = that.ui.sidebarContainer.height()
-			//                     - that.ui.dateContainer.outerHeight(true)
-			//                     - that.ui.balanceContainer.outerHeight(true)
-			//                     - that.ui.budgetPanelTitle.outerHeight(true)
-			//                     - that.ui.bankPanelTitle.outerHeight(true);
-
-			//     that.ui.budgetListItems.height( newHeight );
-			//     that.ui.bankListItems.height( newHeight );
-			// });
 		},
 
 		initDOM: function() {

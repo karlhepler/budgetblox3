@@ -36,7 +36,9 @@ require.config({
 		'smartresize': 					'vendor/jquery-smartresize/jquery.debouncedresize',
 
 		'fastclick': 						'vendor/fastclick/lib/fastclick',
-		'jqueryui-touchpunch': 	'vendor/jqueryui-touch-punch/jquery.ui.touch-punch'
+		'jqueryui-touchpunch': 	'vendor/jqueryui-touch-punch/jquery.ui.touch-punch',
+
+		'iCheck': 							'vendor/iCheck/icheck'
 	},
 	shim: {
 		'bootstrap': {
@@ -73,6 +75,9 @@ require.config({
 				'jqueryui/draggable',
 				'jqueryui/droppable'
 			]
+		},
+		'iCheck': {
+			deps: ['jquery']
 		}
 	}
 });

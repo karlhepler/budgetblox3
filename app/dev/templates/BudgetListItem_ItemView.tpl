@@ -1,7 +1,8 @@
 <tr>
   <td>
   	<div class="grippy"></div>
-  	<div class="info-block">
+    <input type="checkbox">
+  	<div class="info-block">      
   		<div class="h4"><%= name %></div>
   		<div class="desc">
         <span class="budget-limit-text"><%= limit %></span>
