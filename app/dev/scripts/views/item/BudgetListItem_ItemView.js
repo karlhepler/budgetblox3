@@ -96,7 +96,7 @@ define(['marionette', 'templates', 'iCheck'], function(Marionette, templates) {
 
 			// Setup the checkboxes
 			this.ui.checkbox.iCheck({
-				checkboxClass: 'icheckbox_flat-blue'
+				checkboxClass: 'icheckbox_square-blue'
 			});
 
 			// Set this as active if the model is selected

@@ -4,7 +4,7 @@
 @import '../scripts/vendor/pickadate/lib/themes/default.css';
 @import '../scripts/vendor/pickadate/lib/themes/default.date.css';
 @import '../scripts/vendor/chosen-build/chosen.css';
-@import '../scripts/vendor/iCheck/skins/flat/blue.css';
+@import '../scripts/vendor/iCheck/skins/square/blue.css';
 @import url(http://fonts.googleapis.com/css?family=Tangerine);
 @import url(http://fonts.googleapis.com/css?family=Open+Sans:400,700,600);
 /*! normalize.css v2.1.3 | MIT License | git.io/normalize */
@@ -6954,7 +6954,7 @@ form.form-table #btn-date {
 .picker__nav--prev {
   height: 40px;
 }
-#budget-bank-container .icheckbox_flat-blue {
+#budget-bank-container .icheckbox_square-blue {
   float: left;
   margin-top: 5px;
   margin-right: 10px;
@@ -6962,7 +6962,7 @@ form.form-table #btn-date {
 .handle {
   display: block;
   height: 30px;
-  width: 45px;
+  width: 50px;
   float: left;
 }
 #budget-bank-container {
