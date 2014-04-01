@@ -6772,10 +6772,10 @@ form.form-table #btn-date {
   height: 30px;
   float: left;
   cursor: ns-resize;
-  border-right-width: 4px;
-  border-right-style: solid;
+  border-left-width: 4px;
+  border-left-style: solid;
   border-color: transparent;
-  margin-right: 5px;
+  margin-left: -1px;
 }
 .modal-body .grippy {
   background: url(../images/grippy_large.png) repeat-y 0 50%;
@@ -6794,10 +6794,6 @@ form.form-table #btn-date {
 .bank td:first-of-type,
 .budget td:first-of-type {
   cursor: pointer;
-}
-.bank td:first-of-type:hover .grippy,
-.budget td:first-of-type:hover .grippy {
-  background: url(../images/grippy_large.png) repeat-y 0 50%;
 }
 .bank .info-block > div,
 .budget .info-block > div {
@@ -6956,23 +6952,18 @@ form.form-table #btn-date {
 }
 #budget-bank-container .icheckbox_square-blue {
   float: left;
-  margin-top: 5px;
-  margin-right: 10px;
+  margin-top: 4px;
+  margin-right: 0px;
 }
 .handle {
   display: block;
   height: 30px;
-  width: 50px;
+  width: 40px;
   float: left;
 }
 #budget-bank-container {
   margin-left: -15px;
   /* Medium devices (desktops, 992px and up) */
-}
-@media (min-width: 992px) {
-  #budget-bank-container {
-    margin-left: 0;
-  }
 }
 #balance-container {
   margin-left: -15px;

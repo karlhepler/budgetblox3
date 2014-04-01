@@ -1,5 +1,5 @@
 <tr>
-  <td style="position:relative;">
+  <td>
     <div class="handle">
       <div class="grippy"></div>
       <input type="checkbox">
