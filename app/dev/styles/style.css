@@ -6959,3 +6959,29 @@ form.form-table #btn-date {
   margin-top: 5px;
   margin-right: 10px;
 }
+.handle {
+  display: block;
+  height: 30px;
+  width: 45px;
+  float: left;
+}
+#budget-bank-container {
+  margin-left: -15px;
+  /* Medium devices (desktops, 992px and up) */
+}
+@media (min-width: 992px) {
+  #budget-bank-container {
+    margin-left: 0;
+  }
+}
+#balance-container {
+  margin-left: -15px;
+  margin-right: -15px;
+  /* Medium devices (desktops, 992px and up) */
+}
+@media (min-width: 992px) {
+  #balance-container {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}

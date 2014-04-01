@@ -59,7 +59,7 @@ define([
 			  scroll: true,
 			  scrollSensitivity: 35,
 			  helper: 'clone',
-			  handle: '.grippy',
+			  handle: '.handle',
 			  cursor: 'ns-resize',
 			  stop: function(e, ui) {
 			      ui.item.trigger('sortableDropped',ui.item.index());

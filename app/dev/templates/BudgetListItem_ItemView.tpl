@@ -1,7 +1,9 @@
 <tr>
-  <td>
-  	<div class="grippy"></div>
-    <input type="checkbox">
+  <td style="position:relative;">
+    <div class="handle">
+      <div class="grippy"></div>
+      <input type="checkbox">
+    </div>  	
   	<div class="info-block">      
   		<div class="h4"><%= name %></div>
   		<div class="desc">
